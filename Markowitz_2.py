@@ -70,8 +70,38 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
-        
-        
+        momentum_lb = 126  # use ~6 months momentum
+        trend_lb = 200     # long-term trend filter on SPY
+        start_idx = max(self.lookback, momentum_lb, trend_lb) + 1
+
+        for i in range(start_idx, len(self.price)):
+            window = self.returns[assets].iloc[i - self.lookback : i]
+            vol = window.std().replace(0, np.nan)
+            inv_vol = 1 / (vol + 1e-8)
+
+            # Momentum signal (long-only)
+            momentum = (
+                self.price[assets].iloc[i - 1]
+                / self.price[assets].iloc[i - momentum_lb]
+                - 1
+            ).clip(lower=0)
+
+            score = (inv_vol * momentum).fillna(0)
+
+            if score.sum() <= 0:
+                weights = np.zeros(len(assets))
+            else:
+                weights = score.values / score.sum()
+
+            # Risk-off: move to cash when SPY is below its long-term average
+            spy_ma = self.price[self.exclude].iloc[i - trend_lb : i].mean()
+            if self.price[self.exclude].iloc[i - 1] < spy_ma:
+                weights = np.zeros(len(assets))
+
+            self.portfolio_weights.loc[self.price.index[i], assets] = weights
+
+        # Keep SPY weight at zero
+        self.portfolio_weights[self.exclude] = 0
         """
         TODO: Complete Task 4 Above
         """
